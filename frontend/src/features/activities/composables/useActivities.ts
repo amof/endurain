@@ -9,6 +9,7 @@ import {
   type ActivityListFilters,
   type ActivitySortBy,
   type ActivitySortOrder,
+  fetchActivityTracks,
   fetchUserActivitiesPage,
   fetchUserActivityTypes,
 } from '@/features/activities/services/activities'
@@ -81,5 +82,26 @@ export function useUserActivityTypesQuery() {
     queryKey: queryKeys.activities.types(),
     queryFn: ({ signal }) => fetchUserActivityTypes(signal),
     enabled: isAuthenticated,
+  })
+}
+
+/** How long the tracks stay fresh: reading them is a walk over every slice, so a return to the map reuses them. */
+const TRACKS_STALE_TIME_MS = 5 * 60_000
+
+/**
+ * Every simplified track of the authenticated user's own activities, backing the global map; gated on
+ * authentication. A change to the user's activities marks them stale, and they are read again the next time the map
+ * opens.
+ *
+ * @returns The TanStack query result for the tracks.
+ */
+export function useActivityTracksQuery() {
+  const { isAuthenticated } = storeToRefs(useAuthStore())
+
+  return useQuery({
+    queryKey: queryKeys.activities.tracks(),
+    queryFn: ({ signal }) => fetchActivityTracks(signal),
+    enabled: isAuthenticated,
+    staleTime: TRACKS_STALE_TIME_MS,
   })
 }

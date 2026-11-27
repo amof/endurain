@@ -11,29 +11,21 @@
  */
 
 import {
+  monthEnd,
+  monthLabel,
+  monthStart,
   parseIsoDate,
+  shiftMonths,
   shiftWeeks,
   todayIsoDate,
-  toIsoDate,
   weekEnd,
   weekStart,
+  yearRange,
+  type PeriodRange,
 } from '@/utils/datetime'
 
-export { shiftWeeks, weekEnd, weekStart }
-
-/** An inclusive `[startDate, endDate]` range as `YYYY-MM-DD` strings. */
-export interface PeriodRange {
-  /** Inclusive first day of the period. */
-  startDate: string
-  /** Inclusive last day of the period. */
-  endDate: string
-}
-
-/** Parses a `YYYY-MM` string into its numeric year and 1-based month. */
-function parseMonth(month: string): { year: number; month: number } {
-  const parts = month.split('-')
-  return { year: Number(parts[0]), month: Number(parts[1] ?? 1) }
-}
+export { monthEnd, monthLabel, monthStart, shiftMonths, shiftWeeks, weekEnd, weekStart, yearRange }
+export type { PeriodRange }
 
 /** Today's date as `YYYY-MM-DD` (the default week anchor). */
 export function currentWeekAnchor(): string {
@@ -51,52 +43,6 @@ export function currentYear(): number {
 }
 
 /**
- * The first day of the given month.
- *
- * @param month - The target month as `YYYY-MM`.
- * @returns The first day as `YYYY-MM-DD`.
- */
-export function monthStart(month: string): string {
-  const { year, month: monthNumber } = parseMonth(month)
-  return `${year}-${String(monthNumber).padStart(2, '0')}-01`
-}
-
-/**
- * The last day of the given month (inclusive).
- *
- * @param month - The target month as `YYYY-MM`.
- * @returns The last day as `YYYY-MM-DD`.
- */
-export function monthEnd(month: string): string {
-  const { year, month: monthNumber } = parseMonth(month)
-  // Day 0 of the next month rolls back to the last day of this month.
-  return toIsoDate(new Date(Date.UTC(year, monthNumber, 0)))
-}
-
-/**
- * Shifts a month by whole months, rolling over years as needed.
- *
- * @param month - The `YYYY-MM` anchor month.
- * @param delta - Number of months to add (negative to subtract).
- * @returns The shifted month as `YYYY-MM`.
- */
-export function shiftMonths(month: string, delta: number): string {
-  const { year, month: monthNumber } = parseMonth(month)
-  const shifted = new Date(Date.UTC(year, monthNumber - 1 + delta, 1))
-  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, '0')}`
-}
-
-/**
- * The inclusive date range spanning a calendar year.
- *
- * @param year - The target calendar year.
- * @returns The `Jan 1 … Dec 31` range as `YYYY-MM-DD` strings.
- */
-export function yearRange(year: number): PeriodRange {
-  return { startDate: `${year}-01-01`, endDate: `${year}-12-31` }
-}
-
-/**
  * Formats a date-only string as a localized medium date, pinned to UTC so the
  * day never shifts with the viewer's timezone.
  *
@@ -108,21 +54,6 @@ export function formatPeriodDate(iso: string, locale: string): string {
   return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' }).format(
     parseIsoDate(iso),
   )
-}
-
-/**
- * Formats a date-only string as a localized "month year" label, pinned to UTC.
- *
- * @param iso - Any `YYYY-MM-DD` date within the target month.
- * @param locale - BCP-47 locale tag.
- * @returns The localized label (e.g. "June 2026").
- */
-export function monthLabel(iso: string, locale: string): string {
-  return new Intl.DateTimeFormat(locale, {
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(parseIsoDate(iso))
 }
 
 /**

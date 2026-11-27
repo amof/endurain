@@ -4,11 +4,12 @@ import { apiFetch } from '@/services/http'
 import { isProblem } from '@/services/problems'
 import { ifMatchHeaders, rowVersion } from '@/services/ifMatch'
 import { followJob, JobTimeoutError, type JobOf } from '@/services/jobStatus'
-import { fetchAllPages } from '@/services/pagination'
+import { fetchAllPages, MAX_PAGE_SIZE } from '@/services/pagination'
 import { mapEmbeddedUsers } from '@/features/users/services/publicUsers'
 import { pastWeekRange, todayIsoDate } from '@/utils/datetime'
 
 import { isActivityType } from '../utils/activityType'
+import { decodePolyline } from '../utils/polyline'
 import { mapActivityOwner } from './activityOwner'
 import { mapActivityMedia } from './activityMedia'
 
@@ -33,6 +34,9 @@ import type {
   ActivityStreamDto,
   ActivitySummary,
   ActivitySummaryDto,
+  ActivityTrack,
+  ActivityTrackDto,
+  ActivityTrackPageDto,
   ActivityType,
   ActivityWorkoutSet,
   ActivityWorkoutStep,
@@ -494,6 +498,51 @@ export async function fetchUserActivityTypes(signal?: AbortSignal): Promise<Acti
     signal,
   })
   return Object.keys(types ?? {}).filter(isActivityType)
+}
+
+/**
+ * Maps one simplified track to the global map's model, decoding its route.
+ *
+ * @param dto - The track as the API returns it.
+ * @returns The track with its decoded points.
+ */
+export function mapActivityTrack(dto: ActivityTrackDto): ActivityTrack {
+  return {
+    activityId: dto.activity_id,
+    activityType: dto.activity_type,
+    startTime: dto.started_at,
+    endTime: dto.ended_at,
+    startDate: dto.start_date,
+    endDate: dto.end_date,
+    points: decodePolyline(dto.track),
+  }
+}
+
+/**
+ * Fetches every simplified track of the signed-in viewer's own activities, for the global map, by
+ * following `next_cursor` to the last slice. A slice counts activities, so one can hold no track and
+ * still lead to the next.
+ *
+ * @param signal - Optional abort signal for cancellation.
+ * @returns Every track, newest first.
+ * @throws {HttpError} When a request fails.
+ */
+export async function fetchActivityTracks(signal?: AbortSignal): Promise<ActivityTrack[]> {
+  const params = new URLSearchParams({ num_records: String(MAX_PAGE_SIZE) })
+  const tracks: ActivityTrack[] = []
+  let cursor: string | null = null
+  do {
+    if (cursor) {
+      params.set('cursor', cursor)
+    }
+    const slice: ActivityTrackPageDto = await apiFetch<ActivityTrackPageDto>(
+      `/activities/tracks?${params.toString()}`,
+      { signal },
+    )
+    tracks.push(...slice.items.map(mapActivityTrack))
+    cursor = slice.next_cursor ?? null
+  } while (cursor)
+  return tracks
 }
 
 /**

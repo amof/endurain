@@ -20,6 +20,11 @@ export type ThemeColorToken =
   | '--color-hr-zone-4'
   | '--color-cadence'
   | '--color-temperature'
+  | '--color-activity-running-text'
+  | '--color-activity-cycling-text'
+  | '--color-activity-swimming-text'
+  | '--color-activity-hiking-text'
+  | '--color-activity-other-text'
 
 /**
  * Bundled fallbacks mirroring `main.css`, used when the live stylesheet is not
@@ -35,6 +40,11 @@ const TOKEN_FALLBACKS: Record<ThemeColorToken, string> = {
   '--color-hr-zone-4': '#f97316',
   '--color-cadence': '#a855f7',
   '--color-temperature': '#f97316',
+  '--color-activity-running-text': '#b42318',
+  '--color-activity-cycling-text': '#466e15',
+  '--color-activity-swimming-text': '#185fa5',
+  '--color-activity-hiking-text': '#854f0b',
+  '--color-activity-other-text': '#5f5e5a',
 }
 
 /**

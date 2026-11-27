@@ -4,6 +4,7 @@ import {
   type QueryClient,
   skipToken,
   useMutation,
+  useQueries,
   useQuery,
   useQueryClient,
 } from '@tanstack/vue-query'
@@ -100,6 +101,11 @@ export function useActivityQuery(id: MaybeRefOrGetter<string | null>) {
   })
 }
 
+/** The query of one full activity (`GET /activities/{id}`), shared by its reader and its list. */
+function fullActivityQuery(id: string) {
+  return { queryKey: queryKeys.activities.full(id), queryFn: () => fetchActivity(id) }
+}
+
 /**
  * Builds the reader of one full activity (`GET /activities/{id}`, with the private notes and the
  * current version) that an edit started from a list row needs. Every call reads the server, so the
@@ -112,11 +118,21 @@ export function useFullActivityReader() {
   const client = useQueryClient()
 
   return (id: string): Promise<Activity | null> =>
-    client.fetchQuery({
-      queryKey: queryKeys.activities.full(id),
-      queryFn: () => fetchActivity(id),
-      staleTime: 0,
-    })
+    client.fetchQuery({ ...fullActivityQuery(id), staleTime: 0 })
+}
+
+/**
+ * Loads several full activities (`GET /activities/{id}`), one query each, for a list of activities
+ * known only by id.
+ *
+ * @param ids - Reactive activity ids.
+ * @returns The TanStack query results, one per id in the same order; data is `null` when an
+ *   activity is missing or not visible.
+ */
+export function useFullActivitiesQuery(ids: MaybeRefOrGetter<readonly string[]>) {
+  return useQueries({
+    queries: computed(() => toValue(ids).map(fullActivityQuery)),
+  })
 }
 
 /**

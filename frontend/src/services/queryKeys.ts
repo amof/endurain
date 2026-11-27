@@ -166,6 +166,8 @@ export const queryKeys = {
      */
     list: (filters: Record<string, unknown> = {}) => ['activities', 'list', filters] as const,
     details: () => ['activities', 'detail'] as const,
+    /** Every simplified track of the viewer's own activities, drawn by the global map. */
+    tracks: () => ['activities', 'tracks'] as const,
     /**
      * @param name - The activity-name search term.
      * @returns A query key for a name "contains" search.

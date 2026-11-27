@@ -275,5 +275,52 @@
     "inlineSkating": "Inline skating",
     "hiit": "HIIT",
     "jumpRope": "Jump rope"
+  },
+  "globalMap": {
+    "title": "Map",
+    "label": "Map of your activity tracks",
+    "keyboardHint": "Move the map with the arrow keys and zoom with plus and minus. Press Enter to list the activities at its centre.",
+    "recenter": "Fit map to tracks",
+    "cluster": "{count} activity here | {count} activities here",
+    "periodSize": "Group by",
+    "periodSizes": {
+      "all": "All",
+      "week": "Week",
+      "month": "Month",
+      "year": "Year"
+    },
+    "period": "Period",
+    "previous": "Previous period with activities",
+    "next": "Next period with activities",
+    "allTime": "All time",
+    "weekRange": "{start} – {end}",
+    "activityCount": "{count} activity | {count} activities",
+    "journeyCount": "{count} journey | {count} journeys",
+    "hint": "Click a track to list its activities. A bubble counts the activities too small to see at this zoom: click it to zoom in.",
+    "error": "Couldn't load your tracks.",
+    "refreshError": "Couldn't refresh your tracks. The map shows them as they were last read.",
+    "empty": {
+      "title": "No tracks yet",
+      "description": "Activities recorded with GPS appear on this map."
+    },
+    "legend": {
+      "label": "Activities per sport",
+      "running": "Run",
+      "cycling": "Ride",
+      "swimming": "Swim",
+      "hiking": "Walk and hike",
+      "other": "Other"
+    },
+    "panel": {
+      "label": "Map details",
+      "selection": "Selected activities",
+      "selected": "{count} selected",
+      "clear": "Clear selection",
+      "journey": "Journey",
+      "journeyActivities": "{count} activities",
+      "journeyDates": "{start} – {end}",
+      "showMore": "Show more",
+      "loadFailed": "Couldn't load this activity."
+    }
   }
 }

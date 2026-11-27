@@ -68,10 +68,12 @@ const SESSION_ENDED_CLOSE_CODE = 4401
 interface Invalidation {
   /** The domain prefix to invalidate. */
   queryKey: readonly unknown[]
-  /** Key prefixes under `queryKey` the event cannot have changed. */
+  /** Key prefixes under `queryKey` the event cannot have changed, or that another invalidation of it covers. */
   excludeKeys?: ReadonlyArray<readonly unknown[]>
   /** Run at most once per this many milliseconds, for events that arrive in bursts. */
   coalesceMs?: number
+  /** `none` marks the queries stale without refetching the ones on screen; they are read when next shown. */
+  refetchType?: 'none'
 }
 
 const NOTIFICATIONS: Invalidation = { queryKey: queryKeys.notifications.all() }
@@ -82,8 +84,19 @@ const NOTIFICATIONS: Invalidation = { queryKey: queryKeys.notifications.all() }
  */
 const ACTIVITIES: Invalidation = {
   queryKey: queryKeys.activities.all(),
-  excludeKeys: ACTIVITY_ROW_INDEPENDENT_KEYS,
+  excludeKeys: [...ACTIVITY_ROW_INDEPENDENT_KEYS, queryKeys.activities.tracks()],
   coalesceMs: 1_000,
+}
+
+/**
+ * The global map reads every one of the user's tracks, slice after slice, so refetching them for each activity a bulk
+ * import announces would restart that walk every second and spend the route's rate limit. A stored activity marks
+ * them stale instead, and the map reads them again when it is next shown.
+ */
+const ACTIVITY_TRACKS: Invalidation = {
+  queryKey: queryKeys.activities.tracks(),
+  coalesceMs: 1_000,
+  refetchType: 'none',
 }
 
 /** Goal progress counts activities, so a stored activity changes it too. */
@@ -105,8 +118,13 @@ const HEALTH: Invalidation = { queryKey: queryKeys.health.all() }
  * queries; invalidating a key with no active query is a harmless no-op.
  */
 const EVENT_QUERY_INVALIDATIONS: Record<string, ReadonlyArray<Invalidation>> = {
-  NEW_ACTIVITY_NOTIFICATION: [NOTIFICATIONS, ACTIVITIES, GOAL_RESULTS],
-  NEW_DUPLICATE_ACTIVITY_START_TIME_NOTIFICATION: [NOTIFICATIONS, ACTIVITIES, GOAL_RESULTS],
+  NEW_ACTIVITY_NOTIFICATION: [NOTIFICATIONS, ACTIVITIES, ACTIVITY_TRACKS, GOAL_RESULTS],
+  NEW_DUPLICATE_ACTIVITY_START_TIME_NOTIFICATION: [
+    NOTIFICATIONS,
+    ACTIVITIES,
+    ACTIVITY_TRACKS,
+    GOAL_RESULTS,
+  ],
   NEW_FOLLOWER_REQUEST_NOTIFICATION: [NOTIFICATIONS],
   NEW_FOLLOWER_REQUEST_REMOVED_NOTIFICATION: [NOTIFICATIONS],
   NEW_FOLLOWER_REQUEST_ACCEPTED_NOTIFICATION: [NOTIFICATIONS],
@@ -125,6 +143,7 @@ const EVENT_QUERY_INVALIDATIONS: Record<string, ReadonlyArray<Invalidation>> = {
 /** What a re-connect refetches: the data the hints missed while the socket was down may have changed. */
 const RECONNECT_INVALIDATIONS: ReadonlyArray<Invalidation> = [
   ACTIVITIES,
+  ACTIVITY_TRACKS,
   GOAL_RESULTS,
   GEARS,
   HEALTH,
@@ -158,7 +177,10 @@ function invalidate(invalidation: Invalidation): void {
     if (invalidation.excludeKeys) {
       void invalidateExcept(queryClient, invalidation.queryKey, invalidation.excludeKeys)
     } else {
-      void queryClient.invalidateQueries({ queryKey: invalidation.queryKey })
+      void queryClient.invalidateQueries({
+        queryKey: invalidation.queryKey,
+        refetchType: invalidation.refetchType,
+      })
     }
   }
   if (!invalidation.coalesceMs) {

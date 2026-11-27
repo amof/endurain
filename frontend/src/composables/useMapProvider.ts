@@ -1,5 +1,5 @@
 /**
- * Map provider seam. Activity and Home surfaces render GPS tracks through this
+ * Map provider seam. Activity, Home and global map surfaces render GPS tracks through this
  * abstraction so the concrete mapping library (Leaflet, MapLibre, MapTiler, …)
  * can be swapped — or omitted entirely on minimal builds — without touching any
  * view. Self-hosted instances run the default no-op until a provider is
@@ -46,15 +46,55 @@ export interface MapInstance {
   destroy(): void
 }
 
+/** One track of an overview map, drawn among many others. */
+export interface MapOverviewTrack {
+  /** Stable identifier, reported back when the track is clicked. */
+  id: string
+  /** Ordered coordinates forming the route polyline. */
+  points: GeoPoint[]
+  /** Line colour. */
+  color: string
+}
+
+/**
+ * Options controlling an overview map render. A track too small to read at the current zoom is drawn as a dot, and
+ * nearby dots merge into a bubble counting their tracks, which zooms in when clicked.
+ */
+export interface MapOverviewOptions {
+  /** The tracks to display. */
+  tracks: MapOverviewTrack[]
+  /** Ids drawn emphasised; while it is not empty, every other track is dimmed. */
+  highlighted: ReadonlySet<string>
+  /**
+   * Called with the ids of every track under a click, or at the map's centre when Enter is pressed on the map; an
+   * empty list when there is none.
+   */
+  onSelect: (ids: string[]) => void
+  /** The accessible name of a bubble that counts `count` tracks. */
+  clusterLabel: (count: number) => string
+}
+
+/** Imperative handle to a mounted overview map, returned by {@link MapProvider.mountOverview}. */
+export interface MapOverviewInstance {
+  /** Redraws what changed, keeping the viewport unless none of the new tracks is in it. */
+  update(options: MapOverviewOptions): void
+  /** Fits the viewport to the current tracks. */
+  recenter(): void
+  /** Tears down the map and releases resources. */
+  destroy(): void
+}
+
 /**
  * Pluggable map renderer.
  *
  * @property name - Stable identifier of the concrete implementation.
- * @property mount - Mounts a map into `target` and returns its handle.
+ * @property mount - Mounts a single-track map into `target` and returns its handle.
+ * @property mountOverview - Mounts a map of many tracks into `target`, fitted to them, and returns its handle.
  */
 export interface MapProvider {
   readonly name: string
   mount(target: HTMLElement, options: MapRenderOptions): MapInstance
+  mountOverview(target: HTMLElement, options: MapOverviewOptions): MapOverviewInstance
 }
 
 /**
@@ -64,6 +104,13 @@ export interface MapProvider {
 const noopMapProvider: MapProvider = {
   name: 'noop',
   mount() {
+    return {
+      update() {},
+      recenter() {},
+      destroy() {},
+    }
+  },
+  mountOverview() {
     return {
       update() {},
       recenter() {},

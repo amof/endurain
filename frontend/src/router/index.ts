@@ -106,6 +106,13 @@ const router = createRouter({
       meta: { requiresAuth: true, cardless: true },
     },
     {
+      path: '/map',
+      name: 'map',
+      component: () => import('@/features/activities/views/GlobalMapView.vue'),
+      // Cardless: the view supplies its own controls, map and panel surfaces.
+      meta: { requiresAuth: true, cardless: true },
+    },
+    {
       path: '/summary',
       name: 'summary',
       component: () => import('@/features/summary/views/SummaryView.vue'),

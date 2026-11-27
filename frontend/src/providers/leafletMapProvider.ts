@@ -4,14 +4,24 @@
  * behind the seam so minimal builds can omit Leaflet entirely.
  *
  * The pure {@link toLatLngs} and {@link boundsOf} helpers are exported so the
- * seam → Leaflet data translation can be unit-tested without a real map.
+ * seam → Leaflet data translation can be unit-tested without a real map. The
+ * overview map of many tracks lives in `leafletOverviewMap.ts`.
  */
-import { circleMarker, map as createMap, polyline, tileLayer, type Layer } from 'leaflet'
+import {
+  circleMarker,
+  map as createMap,
+  polyline,
+  tileLayer,
+  type Layer,
+  type Map as LeafletMap,
+} from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
 import type {
   GeoPoint,
   MapInstance,
+  MapOverviewInstance,
+  MapOverviewOptions,
   MapProvider,
   MapRenderOptions,
   MapTrack,
@@ -19,6 +29,7 @@ import type {
 
 import { DEFAULT_MAP_CONFIG } from '@/features/config/defaults'
 import { themeColor } from '@/lib/themeColor'
+import { mountLeafletOverview } from './leafletOverviewMap'
 
 /** A latitude/longitude pair in Leaflet's expected `[lat, lng]` order. */
 export type LatLngTuple = [number, number]
@@ -119,6 +130,16 @@ export function createLeafletMapProvider(config: LeafletMapProviderConfig = {}):
   const maxZoom = config.maxZoom ?? DEFAULT_MAX_ZOOM
   const trackColor = config.trackColor ?? DEFAULT_TRACK_COLOR
 
+  /** Adds the configured tile layer to a map. */
+  const addTiles = (map: LeafletMap): void => {
+    // The page sends no Referer; tile servers such as OpenStreetMap require one, so the tile images set their own.
+    tileLayer(tileUrl, {
+      attribution,
+      maxZoom,
+      referrerPolicy: 'strict-origin-when-cross-origin',
+    }).addTo(map)
+  }
+
   return {
     name: 'leaflet',
     mount(target: HTMLElement, options: MapRenderOptions): MapInstance {
@@ -130,13 +151,7 @@ export function createLeafletMapProvider(config: LeafletMapProviderConfig = {}):
         scrollWheelZoom: interactive,
         keyboard: interactive,
       })
-
-      // The page sends no Referer; tile servers such as OpenStreetMap require one, so the tile images set their own.
-      tileLayer(tileUrl, {
-        attribution,
-        maxZoom,
-        referrerPolicy: 'strict-origin-when-cross-origin',
-      }).addTo(map)
+      addTiles(map)
 
       let overlays: Layer[] = []
       let currentTrack: MapTrack = options.track
@@ -185,6 +200,9 @@ export function createLeafletMapProvider(config: LeafletMapProviderConfig = {}):
           map.remove()
         },
       }
+    },
+    mountOverview(target: HTMLElement, options: MapOverviewOptions): MapOverviewInstance {
+      return mountLeafletOverview(target, options, addTiles)
     },
   }
 }

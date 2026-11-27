@@ -1,3 +1,4 @@
+import type { GeoPoint } from '@/composables/useMapProvider'
 import type { Schemas } from '@/types'
 
 /**
@@ -15,6 +16,8 @@ export type ActivityMediaDto = Schemas['ActivityMediaRead']
 export type ActivityWorkoutStepDto = Schemas['ActivityWorkoutStepsRead']
 export type ActivitySetDto = Schemas['ActivitySetsRead']
 export type ActivityExerciseTitleDto = Schemas['ActivityExerciseTitlesRead']
+export type ActivityTrackDto = Schemas['TrackOverviewRead']
+export type ActivityTrackPageDto = Schemas['CursorPage_TrackOverviewRead_']
 
 /** The sport an activity records, as the backend names it. */
 export type ActivityType = Schemas['ActivityType']
@@ -376,4 +379,53 @@ export interface ActivityFeedSlice {
   items: ActivitySummary[]
   nextCursor: string | null
   owners: Map<string, ActivityOwner | null>
+}
+
+/**
+ * One of the viewer's own tracks, simplified for the global map.
+ *
+ * @property activityId - The activity the track belongs to.
+ * @property activityType - The activity's type, which colours the track.
+ * @property startTime - When the activity started (ISO 8601 instant).
+ * @property endTime - When the activity ended (ISO 8601 instant).
+ * @property startDate - The local date it started on (`YYYY-MM-DD`).
+ * @property endDate - The local date it ended on (`YYYY-MM-DD`).
+ * @property points - The simplified route.
+ */
+export interface ActivityTrack {
+  activityId: string
+  activityType: ActivityType
+  startTime: string
+  endTime: string
+  startDate: string
+  endDate: string
+  points: GeoPoint[]
+}
+
+/**
+ * Consecutive activities where each starts near where the previous one ended, seen as one outing.
+ *
+ * @property id - Stable identifier (the first activity's id).
+ * @property activityIds - Its activities, in order.
+ * @property startDate - The local date its first activity started on.
+ * @property endDate - The local date its last activity ended on.
+ */
+export interface Journey {
+  id: string
+  activityIds: string[]
+  startDate: string
+  endDate: string
+}
+
+/**
+ * One outing on the global map: a journey with its activities, or a single activity.
+ *
+ * @property id - Stable key (the journey id, or the activity id).
+ * @property journey - The journey, or `null` for a single activity.
+ * @property activityIds - The activities to list, in order.
+ */
+export interface Outing {
+  id: string
+  journey: Journey | null
+  activityIds: string[]
 }

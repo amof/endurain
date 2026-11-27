@@ -204,6 +204,13 @@ describe('useRealtime', () => {
         .filter((filter) => filter.queryKey[0] === domain)
     }
 
+    /** The invalidations asked for of exactly one key, e.g. `['activities']`. */
+    function invalidationsOfKey(...queryKey: unknown[]): Filter[] {
+      return invalidateQueries.mock.calls
+        .map(([filter]) => filter as Filter)
+        .filter((filter) => JSON.stringify(filter.queryKey) === JSON.stringify(queryKey))
+    }
+
     /** Which of the given keys an invalidation leaves alone, as its predicate sees them. */
     function keptAlone(filter: Filter | undefined, keys: unknown[][]): unknown[][] {
       return keys.filter((queryKey) => !filter?.predicate({ queryKey }))
@@ -246,6 +253,7 @@ describe('useRealtime', () => {
         ['gears'],
         ['health'],
         ['activities'],
+        ['activities', 'tracks'],
         ['goals', 'results'],
       ])
       expect(keptAlone(invalidationsOf('gears')[0], [['gears', 'component-types']])).toEqual([
@@ -280,18 +288,34 @@ describe('useRealtime', () => {
       send(socket, 'NEW_ACTIVITY_NOTIFICATION')
       await vi.advanceTimersByTimeAsync(1_000)
 
-      const activityCalls = invalidationsOf('activities')
+      const activityCalls = invalidationsOfKey('activities')
       expect(activityCalls).toHaveLength(1)
       expect(
         keptAlone(activityCalls[0], [
           ['activities', 'detail', 5, 'streams'],
           ['activities', 'exercise-titles'],
+          ['activities', 'tracks'],
           ['activities', 'list', {}],
           ['activities', 'stats', 7, 'week'],
         ]),
       ).toEqual([
         ['activities', 'detail', 5, 'streams'],
         ['activities', 'exercise-titles'],
+        ['activities', 'tracks'],
+      ])
+    })
+
+    it('marks the global map tracks stale for a new activity without reading them again', async () => {
+      vi.useFakeTimers()
+      const socket = await openSocket()
+
+      for (let hint = 0; hint < 5; hint += 1) {
+        send(socket, 'NEW_ACTIVITY_NOTIFICATION')
+      }
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      expect(invalidationsOfKey('activities', 'tracks')).toEqual([
+        { queryKey: ['activities', 'tracks'], refetchType: 'none' },
       ])
     })
 
@@ -319,8 +343,8 @@ describe('useRealtime', () => {
       }
       await vi.advanceTimersByTimeAsync(1_000)
 
-      const activityCalls = invalidationsOf('activities')
-      expect(activityCalls).toHaveLength(1)
+      expect(invalidationsOfKey('activities')).toHaveLength(1)
+      expect(invalidationsOfKey('activities', 'tracks')).toHaveLength(1)
     })
 
     it('refetches again for a hint that arrives after the burst settled', async () => {
@@ -332,8 +356,7 @@ describe('useRealtime', () => {
       send(socket, 'NEW_ACTIVITY_NOTIFICATION')
       await vi.advanceTimersByTimeAsync(1_000)
 
-      const activityCalls = invalidationsOf('activities')
-      expect(activityCalls).toHaveLength(2)
+      expect(invalidationsOfKey('activities')).toHaveLength(2)
     })
   })
 

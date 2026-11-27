@@ -49,6 +49,7 @@ describe('useMapProvider', () => {
     const fake: MapProvider = {
       name: 'fake-map',
       mount: () => ({ update: () => {}, recenter: () => {}, destroy: () => {} }),
+      mountOverview: () => ({ update: () => {}, recenter: () => {}, destroy: () => {} }),
     }
     setMapProvider(fake)
     const { provider, isAvailable } = useMapProvider()
