@@ -5,6 +5,7 @@ from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from datetime import UTC, date, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import (
     Select,
@@ -1782,3 +1783,56 @@ def prune_activity_deletions(before: datetime, db: Session) -> int:
         How many were removed.
     """
     return core_sync.prune_tombstones(db, activity_models.ActivityDeletion, before)
+
+
+def _local_date(instant: datetime, timezone: str | None) -> date:
+    """Return the local date of an instant in an activity's timezone, or in the fallback one when it has none."""
+    zone = ZoneInfo(timezone or activity_constants.FALLBACK_TIMEZONE)
+    return core_timezone.to_utc_aware(instant).astimezone(zone).date()
+
+
+def get_track_refs_after(
+    user_id: uuid.UUID,
+    after: tuple[datetime, uuid.UUID] | None,
+    limit: int,
+    db: Session,
+) -> list[activity_contracts.ActivityTrackRef]:
+    """Return one keyset slice of the user's activities that may carry a track on the global map, newest first.
+
+    Leaves out the hidden activities (a suspected duplicate would draw its route twice) and the virtual ones, whose
+    positions describe a platform's synthetic route rather than where the athlete was. Whether an activity has a GPS
+    track at all is for the streams module to answer.
+
+    Ordered by ``(start_time DESC, id DESC)``: the id breaks the tie between activities that start at the same
+    instant, which would otherwise straddle a slice boundary and be skipped or repeated.
+
+    Args:
+        user_id: The owning user id.
+        after: The ``(start_time, id)`` position to resume strictly after, or ``None`` for the first slice.
+        limit: Maximum number of references to return.
+        db: Database session.
+
+    Returns:
+        The references, newest first, with their start and end instants and local dates.
+    """
+    activity = activity_models.Activity
+    stmt = select(activity.id, activity.activity_type, activity.start_time, activity.end_time, activity.timezone).where(
+        activity.user_id == user_id,
+        activity.is_hidden.is_(False),
+        activity.activity_type.not_in(activity_constants.VIRTUAL_ACTIVITY_TYPES),
+    )
+    if after is not None:
+        last_start_time, last_id = after
+        stmt = stmt.where(tuple_(activity.start_time, activity.id) < tuple_(literal(last_start_time), literal(last_id)))
+    stmt = stmt.order_by(activity.start_time.desc(), activity.id.desc()).limit(limit)
+    return [
+        activity_contracts.ActivityTrackRef(
+            id=row.id,
+            activity_type=row.activity_type,
+            start_time=core_timezone.to_utc_aware(row.start_time),
+            end_time=core_timezone.to_utc_aware(row.end_time),
+            start_date=_local_date(row.start_time, row.timezone),
+            end_date=_local_date(row.end_time, row.timezone),
+        )
+        for row in db.execute(stmt)
+    ]

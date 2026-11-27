@@ -4,9 +4,10 @@ Separate from ``schema.py`` (the client-facing stream payloads) because these
 never reach a client. They carry parser output into generic activity ingestion.
 """
 
+import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import TypedDict
+from typing import Any, TypedDict
 
 import modules.activities.activity_streams.schema as activity_streams_schema
 
@@ -122,3 +123,29 @@ class ActivityStreamsCreate(activity_streams_schema.ActivityStreamsBase):
     Inherits all fields from ``ActivityStreamsBase``. Internal: it never reaches
     a client, so it is not part of ``schema``.
     """
+
+
+@dataclass(frozen=True)
+class TrackOverview:
+    """The simplified track of one activity's map stream.
+
+    Attributes:
+        activity_id: The activity the track belongs to.
+        track: The simplified track as an encoded polyline.
+    """
+
+    activity_id: uuid.UUID
+    track: str
+
+
+@dataclass(frozen=True)
+class MapStreamSamples:
+    """A map stream whose track overview is still to be computed.
+
+    Attributes:
+        id: The stream id.
+        stream_waypoints: The stream's stored samples.
+    """
+
+    id: uuid.UUID
+    stream_waypoints: list[dict[str, Any]]

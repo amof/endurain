@@ -42,6 +42,7 @@ import modules.activities.activity_media.subscriber_registry as activity_media_s
 import modules.activities.activity_profile_transfer.integration_service as activity_profile_transfer_integration
 import modules.activities.activity_sets.integration_service as activity_sets_integration
 import modules.activities.activity_streams.integration_service as activity_streams_integration
+import modules.activities.activity_streams.scheduled_jobs as activity_streams_scheduled_jobs
 import modules.activities.activity_thumbnail.constants as activity_thumbnail_constants
 import modules.activities.activity_thumbnail.integration_service as activity_thumbnail_integration
 import modules.activities.activity_thumbnail.scheduled_jobs as activity_thumbnail_scheduled_jobs
@@ -271,6 +272,17 @@ MODULES: tuple[RuntimeModule, ...] = (
         recurring_jobs=activity_scheduled_jobs.recurring_jobs,
         audit_actions=activity_audit_actions.ACTIONS,
         shutdown=activity_integration.shutdown_bulk_edit_pool,
+    ),
+    RuntimeModule(
+        name="activity_streams",
+        recurring_jobs=activity_streams_scheduled_jobs.recurring_jobs,
+        startup_tasks=(
+            StartupTask(
+                "fill_missing_track_overviews",
+                "Scheduling missing activity track overview computation",
+                activity_streams_scheduled_jobs.schedule_missing_track_overviews,
+            ),
+        ),
     ),
     RuntimeModule(
         name="activity_thumbnail",

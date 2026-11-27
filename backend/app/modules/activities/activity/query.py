@@ -17,6 +17,7 @@ from sqlalchemy import ColumnElement, and_, func, or_
 
 import core.sanitization as core_sanitization
 import core.timezone as core_timezone
+import modules.activities.activity.constants as activity_constants
 import modules.activities.activity.models as activity_models
 
 #: Re-exported for the callers that reason about the widened pre-filter below.
@@ -68,7 +69,7 @@ def local_start_time_expression() -> ColumnElement[datetime]:
     """
     # ``timezone(zone, timestamptz) -> timestamp`` is Postgres' AT TIME ZONE.
     return func.timezone(
-        func.coalesce(activity_models.Activity.timezone, "UTC"),
+        func.coalesce(activity_models.Activity.timezone, activity_constants.FALLBACK_TIMEZONE),
         activity_models.Activity.start_time,
     )
 

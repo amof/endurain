@@ -20,6 +20,7 @@ import modules.activities.activity_media.router as activity_media_router
 import modules.activities.activity_sets.public_router as activity_sets_public_router
 import modules.activities.activity_sets.router as activity_sets_router
 import modules.activities.activity_streams.router as activity_streams_router
+import modules.activities.activity_streams.track_router as activity_streams_track_router
 import modules.activities.activity_thumbnail.public_router as activity_thumbnail_public_router
 import modules.auth.account_security.admin_api_keys_router as auth_admin_api_keys_router
 import modules.auth.account_security.api_keys_router as auth_api_keys_router
@@ -178,8 +179,8 @@ router.include_router(
 )
 # Literal ``/activities/<name>`` sub-resources, mounted for the same reason as the
 # ingestion routers above: they must be matched before the core router's dynamic
-# ``/activities/{activity_id}``, which would otherwise swallow "summaries" and
-# "exercise-titles" as activity ids and answer 422.
+# ``/activities/{activity_id}``, which would otherwise swallow "summaries",
+# "exercise-titles" and "tracks" as activity ids and answer 422.
 router.include_router(
     activity_summary_router.router,
     prefix=core_config.ROOT_PATH + "/activities/summaries",
@@ -190,6 +191,12 @@ router.include_router(
     activity_exercise_titles_router.router,
     prefix=core_config.ROOT_PATH + "/activities/exercise-titles",
     tags=["activity_exercise_titles"],
+    dependencies=[Depends(auth_dependencies.authenticate)],
+)
+router.include_router(
+    activity_streams_track_router.router,
+    prefix=core_config.ROOT_PATH + "/activities/tracks",
+    tags=["activity_streams"],
     dependencies=[Depends(auth_dependencies.authenticate)],
 )
 router.include_router(

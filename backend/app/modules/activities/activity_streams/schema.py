@@ -1,9 +1,11 @@
 """Pydantic schemas for activity stream data."""
 
 import uuid
+from datetime import date
 from typing import Annotated, Any
 
 from pydantic import (
+    AwareDatetime,
     BaseModel,
     BeforeValidator,
     ConfigDict,
@@ -15,6 +17,7 @@ from pydantic import (
 )
 
 import core.pagination as core_pagination
+import modules.activities.activity.schema as activity_schema
 import modules.activities.activity_streams.constants as activity_streams_constants
 import modules.activities.activity_streams.hr_zones as activity_streams_hr_zones
 
@@ -276,3 +279,30 @@ ActivityStreamsPage = core_pagination.Page[ActivityStreamsRead]
 
 #: The page a client reads: each stream typed by its ``stream_type``.
 ActivityStreamResponsePage = core_pagination.Page[ActivityStreamResponse]
+
+
+class TrackOverviewRead(BaseModel):
+    """The simplified track of one of the caller's activities, as the global map draws it.
+
+    Attributes:
+        activity_id: The activity the track belongs to.
+        activity_type: The activity's type.
+        started_at: When the activity started, in UTC.
+        ended_at: When the activity ended, in UTC.
+        start_date: The local date the activity started on, in its own timezone.
+        end_date: The local date the activity ended on, in its own timezone.
+        track: The track simplified to within 10 metres, as an encoded polyline (Google format, five decimals).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    activity_id: uuid.UUID
+    activity_type: activity_schema.StoredActivityType
+    started_at: AwareDatetime
+    ended_at: AwareDatetime
+    start_date: date
+    end_date: date
+    track: str
+
+
+TrackOverviewPage = core_pagination.CursorPage[TrackOverviewRead]

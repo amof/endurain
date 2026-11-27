@@ -3,7 +3,7 @@
 import uuid
 from typing import Any
 
-from sqlalchemy import JSON, ForeignKey
+from sqlalchemy import JSON, ForeignKey, Text
 from sqlalchemy.orm import (
     Mapped,
     mapped_column,
@@ -21,6 +21,7 @@ class ActivityStreams(Base):
         stream_type: Stream type integer code.
         stream_waypoints: JSON waypoint data.
         strava_activity_stream_id: Strava stream ID.
+        track_overview: The map stream's simplified track; ``None`` until it is computed.
     """
 
     __tablename__ = "activities_streams"
@@ -47,4 +48,9 @@ class ActivityStreams(Base):
     strava_activity_stream_id: Mapped[int | None] = mapped_column(
         nullable=True,
         comment="Strava activity stream ID",
+    )
+    track_overview: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Map stream only: simplified track as an encoded polyline, empty when there is no line to draw",
     )

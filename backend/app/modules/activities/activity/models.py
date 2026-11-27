@@ -100,6 +100,8 @@ class Activity(UpdatedAtMixin, Base):
         Index("ix_activities_user_id_updated_at_id", "user_id", "updated_at", "id"),
         # Strava ids are looked up for the owner only; two accounts may link the same Strava athlete.
         Index("ix_activities_user_id_strava_activity_id", "user_id", "strava_activity_id"),
+        # The global map reads a user's activities newest first in keyset slices, each one a range of this index.
+        Index("ix_activities_user_id_start_time_id", "user_id", "start_time", "id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)

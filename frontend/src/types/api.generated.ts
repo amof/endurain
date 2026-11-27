@@ -210,6 +210,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/activities/tracks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Activity Tracks
+         * @description List a keyset slice of the caller's own activity tracks, newest first, simplified for drawing many on one map.
+         *
+         *     Each track is the activity's GPS route simplified to within 10 metres, as an encoded polyline, with the
+         *     activity's type, its start and end instants and its local start and end dates. Hidden and virtual activities,
+         *     and activities without GPS, have no track. A track that is still being computed after an upgrade appears once it
+         *     is ready.
+         *
+         *     Pass the `next_cursor` of a slice as `cursor` to get the following one; it is `null` on the last slice. A slice
+         *     covers `num_records` activities and an activity without a track has no item in it, so a slice can hold fewer
+         *     tracks than that, even none, before the last one.
+         */
+        get: operations["list_activity_tracks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/activities/types": {
         parameters: {
             query?: never;
@@ -6077,6 +6106,15 @@ export interface components {
         CursorPage_LogEntry_: {
             /** Items */
             items: components["schemas"]["LogEntry"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+            /** Num Records */
+            num_records: number;
+        };
+        /** CursorPage[TrackOverviewRead] */
+        CursorPage_TrackOverviewRead_: {
+            /** Items */
+            items: components["schemas"]["TrackOverviewRead"][];
             /** Next Cursor */
             next_cursor?: string | null;
             /** Num Records */
@@ -12785,6 +12823,49 @@ export interface components {
             token_type: "bearer";
         };
         /**
+         * TrackOverviewRead
+         * @description The simplified track of one of the caller's activities, as the global map draws it.
+         *
+         *     Attributes:
+         *         activity_id: The activity the track belongs to.
+         *         activity_type: The activity's type.
+         *         started_at: When the activity started, in UTC.
+         *         ended_at: When the activity ended, in UTC.
+         *         start_date: The local date the activity started on, in its own timezone.
+         *         end_date: The local date the activity ended on, in its own timezone.
+         *         track: The track simplified to within 10 metres, as an encoded polyline (Google format, five decimals).
+         */
+        TrackOverviewRead: {
+            /**
+             * Activity Id
+             * Format: uuid
+             */
+            activity_id: string;
+            activity_type: components["schemas"]["ActivityType"];
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
+            /**
+             * Ended At
+             * Format: date-time
+             */
+            ended_at: string;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Track */
+            track: string;
+        };
+        /**
          * TypeBreakdownItem
          * @description Summary metrics broken down by activity type.
          *
@@ -15661,6 +15742,93 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WeeklySummaryRead"] | components["schemas"]["MonthlySummaryRead"] | components["schemas"]["YearlySummaryRead"] | components["schemas"]["LifetimeSummaryRead"];
+                };
+            };
+            /** @description The credential is missing, invalid or no longer valid. */
+            401: {
+                headers: {
+                    /** @description The authentication challenge. */
+                    "WWW-Authenticate"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description The caller is signed in but not allowed, for example a scope is missing. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description The rate limit was reached. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before the request can succeed. */
+                    "Retry-After"?: number;
+                    /** @description The number of requests the limit that was reached allows in its window. */
+                    "X-RateLimit-Limit"?: number;
+                    /** @description The requests left in the window: always 0 on a 429. */
+                    "X-RateLimit-Remaining"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description A dependency is unavailable for a moment. */
+            503: {
+                headers: {
+                    /** @description Seconds to wait before the request can succeed. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Unexpected error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    list_activity_tracks: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                num_records?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CursorPage_TrackOverviewRead_"];
                 };
             };
             /** @description The credential is missing, invalid or no longer valid. */

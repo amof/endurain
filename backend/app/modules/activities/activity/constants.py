@@ -108,6 +108,10 @@ ACTIVITY_NAME_TO_ID = {name.lower(): activity_type_id for activity_type_id, name
 #: timezone. Named for the question the parsers ask, so both share one answer.
 VIRTUAL_ACTIVITY_TYPES = frozenset({3, 7})
 
+#: The timezone an activity without a stored one (an indoor import that carried no GPS) is read in, so the local day
+#: of an activity is the same in the summaries, which ask the database, and on the global map, which asks Python.
+FALLBACK_TIMEZONE = "UTC"
+
 #: The sport each activity type belongs to. The activities module owns the
 #: activity-type vocabulary, so it owns the grouping over it too: a consumer that
 #: needs "which types count as running?" asks here instead of keeping its own

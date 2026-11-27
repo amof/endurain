@@ -33,6 +33,7 @@ from sqlalchemy.orm import Session
 import core.exceptions as core_exceptions
 import core.logger as core_logger
 import core.pagination as core_pagination
+import modules.activities.activity.constants as activity_constants
 import modules.activities.activity.integration_service as activity_integration
 import modules.activities.activity.schema as activity_schema
 import modules.activities.activity_streams.constants as activity_streams_constants
@@ -42,6 +43,10 @@ import modules.activities.activity_streams.schema as activity_streams_schema
 import modules.users.users.integration_service as users_integration
 
 logger = core_logger.get_logger(__name__)
+
+#: Map streams read per backfill batch. Far below the maintenance batch size: each row carries every GPS sample of
+#: its activity, so one batch holds up to a few million samples in memory.
+TRACK_OVERVIEW_BACKFILL_BATCH_SIZE = 50
 
 #: The parent ``hide_*`` flag that withholds each stored stream type from a non-owner, or ``None`` for a
 #: type no flag covers. A type missing here is withheld, so a new stream type stays owner-only until it is
@@ -351,3 +356,74 @@ def get_public_activity_stream(
         raise core_exceptions.NotFoundError("Activity stream not found")
 
     return _with_zones(_without_sample_times([stream], activity), activity, db)[0]
+
+
+def list_track_overviews(
+    user_id: uuid.UUID,
+    db: Session,
+    *,
+    cursor: str | None,
+    num_records: int,
+) -> activity_streams_schema.TrackOverviewPage:
+    """Return one keyset slice of the caller's own simplified tracks, newest first, for the global map.
+
+    The owner reads their own activities, so no visibility mask applies. Hidden and virtual activities have no track
+    on the map, and neither has an activity without a GPS stream. A slice covers ``num_records`` activities, and one
+    without a track has no item, so a slice can hold fewer tracks than that, even none, and still name a next one.
+
+    Args:
+        user_id: The caller, whose activities are read.
+        db: Database session.
+        cursor: Opaque cursor from the previous slice, or ``None`` to start.
+        num_records: Slice size, in activities.
+
+    Returns:
+        The slice of tracks and the cursor for the next one.
+
+    Raises:
+        InvalidInputError: When the cursor is not one this server issued.
+    """
+    after = core_pagination.decode_uuid_cursor(cursor) if cursor else None
+    # Over-fetch by one: the extra reference proves another slice exists without a second query, and its track is
+    # not looked up.
+    refs = activity_integration.list_track_refs_after(user_id, after, num_records + 1, db)
+    has_more = len(refs) > num_records
+    refs = refs[:num_records]
+    tracks = {
+        overview.activity_id: overview.track
+        for overview in activity_streams_crud.get_track_overviews([ref.id for ref in refs], db)
+    }
+    items = [
+        activity_streams_schema.TrackOverviewRead(
+            activity_id=ref.id,
+            activity_type=activity_constants.ActivityType.from_stored(ref.activity_type),
+            started_at=ref.start_time,
+            ended_at=ref.end_time,
+            start_date=ref.start_date,
+            end_date=ref.end_date,
+            track=track,
+        )
+        for ref in refs
+        if (track := tracks.get(ref.id)) is not None
+    ]
+    next_cursor = core_pagination.encode_cursor(refs[-1].start_time, refs[-1].id) if has_more else None
+    return activity_streams_schema.TrackOverviewPage(items=items, num_records=num_records, next_cursor=next_cursor)
+
+
+def fill_missing_track_overviews(db: Session) -> None:
+    """Compute the track overview of every map stream that has none yet, one committed batch at a time.
+
+    Streams written since the overview exists get it when they are created; this pass fills the ones stored before.
+    Every stream of a batch gets an overview, the empty one when it has no line to draw, so the next batch starts
+    after it.
+
+    Args:
+        db: Database session.
+    """
+    filled = 0
+    while batch := activity_streams_crud.get_map_streams_without_overview(db, limit=TRACK_OVERVIEW_BACKFILL_BATCH_SIZE):
+        activity_streams_crud.set_track_overviews(batch, db)
+        db.commit()
+        filled += len(batch)
+    if filled:
+        logger.info("Filled missing track overviews", extra=core_logger.context(count=filled))

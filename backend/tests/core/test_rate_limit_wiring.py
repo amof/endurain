@@ -35,6 +35,7 @@ from limits import parse as parse_limit
 from slowapi.errors import RateLimitExceeded
 
 import core.config as core_config
+import core.database as core_database
 import core.exceptions as core_exceptions
 import core.logger as core_logger
 import core.rate_limit as core_rate_limit
@@ -94,6 +95,7 @@ import modules.users.users_default_gear.router as users_default_gear_router
 import modules.users.users_goals.router as users_goals_router
 import modules.users.users_profile.router as users_profile_router
 import modules.websocket.router as websocket_router
+from tests._helpers.db import create_sqlite_session
 
 
 def _registered_limits(func) -> list[str]:
@@ -635,6 +637,32 @@ def test_job_polling_has_its_own_tier(enabled_limiter, real_app):
         real_app.dependency_overrides.pop(auth_dependencies.get_principal)
 
     assert 429 not in statuses[:cap]
+    assert statuses[cap] == 429
+
+
+def test_the_global_map_reads_its_tracks_on_the_default_tier(enabled_limiter, real_app):
+    """A slice of ``GET /activities/tracks`` is one index range and its tracks, so the route keeps the default tier.
+
+    The global map reads every slice in one load: 120 slices a minute, about 24,000 activities, are served. The
+    principal holds the route's scope, so each request reaches the route and is served from an empty database.
+    """
+    cap = parse_limit(core_rate_limit.DEFAULT).amount
+    db = create_sqlite_session()
+    real_app.dependency_overrides[auth_dependencies.get_principal] = lambda: SimpleNamespace(
+        user_id=uuid.uuid4(), scopes=frozenset({"activities:read"})
+    )
+    real_app.dependency_overrides[core_database.get_db] = lambda: db
+    try:
+        client = TestClient(real_app, raise_server_exceptions=False)
+
+        statuses = _statuses(client, f"{core_config.ROOT_PATH}/activities/tracks?num_records=200", cap + 1)
+    finally:
+        real_app.dependency_overrides.pop(auth_dependencies.get_principal)
+        real_app.dependency_overrides.pop(core_database.get_db)
+        db.close()
+        db.bind.dispose()
+
+    assert statuses[:cap] == [200] * cap
     assert statuses[cap] == 429
 
 

@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import field_validator
 
@@ -108,6 +108,30 @@ class ActivityThumbnailRef:
 
     id: uuid.UUID
     map_thumbnail_path: str | None = None
+
+
+@dataclass(frozen=True)
+class ActivityTrackRef:
+    """Lightweight activity reference for the global map.
+
+    Carries what the map needs besides the track itself: the type for colouring, the instants for ordering activities
+    into journeys and the local dates for bucketing.
+
+    Attributes:
+        id: The activity id.
+        activity_type: The activity type code.
+        start_time: When the activity started, in UTC.
+        end_time: When the activity ended, in UTC.
+        start_date: The local date the activity started on, in its own timezone.
+        end_date: The local date the activity ended on, in its own timezone.
+    """
+
+    id: uuid.UUID
+    activity_type: int
+    start_time: datetime
+    end_time: datetime
+    start_date: date
+    end_date: date
 
 
 @dataclass(frozen=True)

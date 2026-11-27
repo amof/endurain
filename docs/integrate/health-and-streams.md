@@ -62,3 +62,21 @@ Weight, steps, sleep, water, poop and fasting each have a list (`GET /health/{me
 - **Values are numbers as stored**, so an integer such as `120` stays `120` and is not turned into `120.0`. A value can be `null` where the source recorded none.
 - **A stream is served whole.** There is no downsampling, and a long activity has many waypoints; the page parameters count streams, not waypoints.
 - The heart-rate stream also carries `zone_percentages`, computed from the owner's current thresholds. Streams of other types have `null` there.
+
+## Activity tracks
+
+`GET /activities/tracks` lists the caller's own activity tracks, newest first, simplified for drawing many on one map, as `{"items": [...], "num_records": <int>, "next_cursor": <string or null>}`. Send the `next_cursor` of a slice as `cursor` to get the following one, and read on until it is `null` to draw them all. The cursor is opaque and names the last activity a slice covered, so a track computed or an activity recorded between two requests does not shift or repeat any track, and the response has no total. Each item has:
+
+| Field | Meaning |
+| ----- | ------- |
+| `activity_id` | The activity the track belongs to. |
+| `activity_type` | The activity's type, as in [Supported types](supported-types.md). |
+| `started_at`, `ended_at` | When the activity started and ended, UTC instants. |
+| `start_date`, `end_date` | The local dates it started and ended on, in the activity's own timezone. |
+| `track` | The GPS route as an [encoded polyline](https://developers.google.com/maps/documentation/utilities/polylinealgorithm) with five decimals. |
+
+- **Only your own activities.** The route needs `activities:read`, and no other user's track is ever listed.
+- **Simplified to within 10 metres.** The track keeps only the points it needs to stay within 10 metres of the recorded route, so it suits an overview, not a measurement. Read the `map` stream for every recorded position.
+- **Some activities have no track.** An activity without GPS, a virtual activity (its positions describe a platform's synthetic route) and a hidden activity are left out.
+- **A slice counts activities, not tracks.** `num_records` (1 to 200, default 25) is how many of your activities a slice covers, and one without a track has no item, so a slice can hold fewer tracks than that, even none, and still carry a `next_cursor`. Keep following it.
+- **Existing activities fill in after an upgrade.** The tracks of activities stored before this route existed are computed in the background, so they can appear over the first minutes after an upgrade.

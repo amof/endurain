@@ -202,6 +202,28 @@ def list_user_activities_page(
     )
 
 
+def list_track_refs_after(
+    user_id: uuid.UUID,
+    after: tuple[datetime, uuid.UUID] | None,
+    limit: int,
+    db: Session,
+) -> list[activity_contracts.ActivityTrackRef]:
+    """Return one keyset slice of the user's own activities that may carry a track on the global map, newest first.
+
+    The owner reads their own activities, so no visibility mask applies; hidden and virtual activities are left out.
+
+    Args:
+        user_id: The owning user id.
+        after: The ``(start_time, id)`` of the last reference already read, or ``None`` for the first slice.
+        limit: Maximum number of references to return.
+        db: Database session.
+
+    Returns:
+        The references, newest first, with their type, instants and local start and end dates.
+    """
+    return activity_crud.get_track_refs_after(user_id, after, limit, db)
+
+
 def total_user_activities_in_timeframe_by_types(
     user_id: uuid.UUID,
     activity_types: list[int],
