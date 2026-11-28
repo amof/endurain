@@ -34,9 +34,11 @@ const showCard = computed(() => showChrome.value && !route.meta.cardless)
   <div v-else class="flex min-h-svh flex-col bg-background text-foreground">
     <AppNavbar v-if="showChrome" />
     <main class="flex flex-1 flex-col">
+      <!-- With the chrome, the container fills the height between the navbar and the footer, so a view can grow
+           into it; bare screens centre vertically instead. -->
       <div
         class="mx-auto w-full max-w-7xl px-3 py-3 sm:px-3 sm:py-3"
-        :class="{ 'my-auto': !showChrome }"
+        :class="showChrome ? 'flex flex-1 flex-col' : 'my-auto'"
       >
         <ErrorBoundary>
           <Card v-if="showCard" padding="lg">

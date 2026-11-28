@@ -257,6 +257,83 @@ describe('useGlobalMap', () => {
     )
   })
 
+  it('lists every journey with an activity in the period shown, most recent first', async () => {
+    const july = [
+      track(north(0), north(20), '2026-07-18T07:00:00Z', '2026-07-18T16:00:00Z'),
+      track(north(20), north(40), '2026-07-19T07:00:00Z', '2026-07-19T16:00:00Z'),
+    ]
+    const august = [
+      track(north(100), north(120), '2026-08-08T07:00:00Z', '2026-08-08T16:00:00Z'),
+      track(north(120), north(140), '2026-08-09T07:00:00Z', '2026-08-09T16:00:00Z'),
+    ]
+    const single = outing('2026-07-25')
+    const map = useGlobalMap(ref([...july, single, ...august]), ref('monday'))
+
+    expect(map.journeyOutings.value.map((current) => current.activityIds)).toEqual([
+      august.map((current) => current.activityId),
+      july.map((current) => current.activityId),
+    ])
+    expect(map.journeyOutings.value[0]?.journey?.id).toBe(august[0]?.activityId)
+
+    map.size.value = 'month'
+    await nextTick()
+    map.index.value = 0
+    expect(map.journeyOutings.value.map((current) => current.activityIds)).toEqual([
+      july.map((current) => current.activityId),
+    ])
+  })
+
+  it('draws and counts only the activities of journeys when asked, and keeps only journeys selected', async () => {
+    const trek = [
+      track(north(0), north(20), '2026-07-18T07:00:00Z', '2026-07-18T16:00:00Z'),
+      track(north(20), north(40), '2026-07-19T07:00:00Z', '2026-07-19T16:00:00Z'),
+    ]
+    const single = outing('2026-08-02')
+    const map = useGlobalMap(ref([...trek, single]), ref('monday'))
+    map.selectedIds.value = [single.activityId, trek[0]?.activityId ?? '']
+
+    map.journeysOnly.value = true
+    await nextTick()
+
+    expect(map.visibleTracks.value).toEqual(trek)
+    expect(map.outings.value.map((current) => current.activityIds)).toEqual([
+      trek.map((current) => current.activityId),
+    ])
+    expect(map.activityCount.value).toBe(2)
+    expect(map.journeyCount.value).toBe(1)
+    expect(map.categoryCounts.value.hiking).toBe(2)
+
+    map.size.value = 'month'
+    await nextTick()
+    // The periods end with the last journey, so the map opens on July rather than on August.
+    expect(map.counts.value).toEqual([2])
+    expect(map.period.value?.start).toBe('2026-07-01')
+
+    map.journeysOnly.value = false
+    await nextTick()
+    expect(map.counts.value).toEqual([2, 1])
+    expect(map.period.value?.start).toBe('2026-07-01')
+  })
+
+  it('shows every activity again once the viewer has no journey left', async () => {
+    const trek = [
+      track(north(0), north(20), '2026-07-18T07:00:00Z', '2026-07-18T16:00:00Z'),
+      track(north(20), north(40), '2026-07-19T07:00:00Z', '2026-07-19T16:00:00Z'),
+    ]
+    const single = outing('2026-08-02')
+    const tracks = ref([...trek, single])
+    const map = useGlobalMap(tracks, ref('monday'))
+    map.journeysOnly.value = true
+    expect(map.hasJourneys.value).toBe(true)
+
+    tracks.value = [trek[0] as ActivityTrack, single]
+    await nextTick()
+
+    expect(map.hasJourneys.value).toBe(false)
+    expect(map.journeysOnly.value).toBe(false)
+    expect(map.visibleTracks.value).toEqual(tracks.value)
+  })
+
   it('clears the selection when another period is shown', async () => {
     const tracks = [outing('2026-01-05'), outing('2026-03-10')]
     const map = useGlobalMap(ref(tracks), ref('monday'))
@@ -440,7 +517,7 @@ describe('mountLeafletOverview', () => {
   })
 
   /** Mounts an 800 by 600 pixel overview of the tracks; jsdom has no layout or canvas, so both are stubbed. */
-  function mountOverview(tracks: MapOverviewTrack[]) {
+  function mountOverview(tracks: MapOverviewTrack[], dots = true) {
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -457,7 +534,7 @@ describe('mountLeafletOverview', () => {
     const onSelect = vi.fn<(ids: string[]) => void>()
     mountLeafletOverview(
       target,
-      { tracks, highlighted: new Set(), onSelect, clusterLabel: String },
+      { tracks, highlighted: new Set(), dots, onSelect, clusterLabel: String },
       () => {},
     )
     return { target, onSelect }
@@ -495,5 +572,24 @@ describe('mountLeafletOverview', () => {
 
     press(target, 'Enter')
     expect(onSelect).toHaveBeenCalledExactlyOnceWith(['dot'])
+  })
+
+  it('draws every track as its line, with no dot or bubble, when dots are off', () => {
+    const tiny = (id: string): MapOverviewTrack => ({
+      id,
+      color: 'red',
+      points: [HOME, { lat: 45.0001, lng: 6.0001 }],
+    })
+    // Two tracks too small to read, close together: a bubble when dots are on.
+    expect(
+      mountOverview([tiny('a'), tiny('b')]).target.querySelectorAll('.leaflet-marker-icon'),
+    ).toHaveLength(1)
+    document.body.replaceChildren()
+
+    const { target, onSelect } = mountOverview([tiny('a'), tiny('b')], false)
+
+    expect(target.querySelectorAll('.leaflet-marker-icon')).toHaveLength(0)
+    press(target, 'Enter')
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith(['a', 'b'])
   })
 })

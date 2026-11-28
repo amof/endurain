@@ -33,6 +33,8 @@ const {
   periods,
   counts,
   period,
+  hasJourneys,
+  journeysOnly,
   visibleTracks,
   activityCount,
   journeyCount,
@@ -41,6 +43,7 @@ const {
   nextIndex,
   selectedIds,
   outings,
+  journeyOutings,
   highlighted,
 } = useGlobalMap(tracks, firstDayOfWeek)
 
@@ -48,8 +51,9 @@ const {
 const trackColors = activityTrackColors()
 
 const canvas = useTemplateRef<InstanceType<typeof GlobalMapCanvas>>('canvas')
-// Picking another period size fits the map to the period it lands on; moving through time then keeps the viewport.
-watch(size, () => canvas.value?.recenter(), { flush: 'post' })
+// Picking another period size, or switching between activities and journeys, fits the map to what it then shows;
+// moving through time keeps the viewport.
+watch([size, journeysOnly], () => canvas.value?.recenter(), { flush: 'post' })
 
 const mapTracks = computed<MapOverviewTrack[]>(() =>
   visibleTracks.value.map((track) => ({
@@ -78,10 +82,16 @@ const periodLabel = computed(() => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-4">
+  <!-- On large screens the view fills the window between the navbar and the footer, and the map takes what the title
+       and timeline leave, down to a floor under which the page scrolls. -->
+  <div class="flex flex-col gap-4 lg:flex-1">
     <h1 class="text-page-title">{{ t('activities.globalMap.title') }}</h1>
 
-    <Skeleton v-if="isPending" class="h-112 w-full rounded-card lg:h-160" aria-busy="true" />
+    <Skeleton
+      v-if="isPending"
+      class="h-112 w-full rounded-card lg:h-auto lg:flex-1"
+      aria-busy="true"
+    />
     <ErrorState
       v-else-if="isError && !data"
       :title="t('activities.globalMap.error')"
@@ -106,15 +116,16 @@ const periodLabel = computed(() => {
         :title="t('activities.globalMap.empty.title')"
         :description="t('activities.globalMap.empty.description')"
       />
-      <div v-else class="flex flex-col gap-4 lg:flex-row">
+      <div v-else class="flex flex-col gap-4 lg:flex-1 lg:flex-row">
         <section
           class="flex min-w-0 flex-1 flex-col overflow-hidden rounded-card border border-border bg-card"
         >
-          <div class="h-112 lg:h-144">
+          <div class="h-112 lg:h-auto lg:min-h-96 lg:flex-1">
             <GlobalMapCanvas
               ref="canvas"
               :tracks="mapTracks"
               :highlighted="highlighted"
+              :dots="!journeysOnly"
               @select="selectedIds = $event"
             />
           </div>
@@ -134,9 +145,12 @@ const periodLabel = computed(() => {
             class="lg:absolute lg:inset-0"
             :label="periodLabel"
             :activity-count="activityCount"
+            v-model:journeys-only="journeysOnly"
             :journey-count="journeyCount"
             :category-counts="categoryCounts"
             :outings="outings"
+            :journey-outings="journeyOutings"
+            :has-journeys="hasJourneys"
             :units="units"
             @clear="selectedIds = []"
           />

@@ -35,15 +35,18 @@ interface FiledTrack {
  * A journey is drawn whole in every period it overlaps, while the counts take each activity in the period it
  * happened in. A new list of periods, after a refetch or a change of period size, keeps the time shown: it moves to
  * the latest period with activities within the period shown before, else to the period holding its start, else to the
- * latest period. A selection belongs to the period it was made in, so a change of period clears it.
+ * latest period. A selection belongs to the period it was made in, so a change of period clears it. The map can show
+ * only the activities of journeys, while the viewer has any: then the periods, their counts, the tracks drawn and the
+ * totals take those alone.
  *
  * @param tracks - Every track of the viewer.
  * @param firstDayOfWeek - The viewer's first weekday, for weekly periods.
  * @returns The journey of each activity; the period size and index (both writable); the periods and the number of
- *   activities in each; the period shown (`null` for all time), the tracks it draws, its number of activities and
- *   journeys and its activities per sport category; the nearest earlier and later periods with activities (`null`
- *   when there is none); and the selected activity ids (writable), their outings, most recent first, and the ids
- *   they highlight.
+ *   activities shown in each; the period shown (`null` for all time); whether the viewer has any journey and whether
+ *   only journeys are shown (writable); the tracks the period draws, its number of activities and journeys and its
+ *   activities per sport category; the nearest earlier and later periods with activities (`null` when there is
+ *   none); the selected activity ids (writable) and their outings; the period's journeys as outings, both most recent
+ *   first; and the ids the selection highlights.
  */
 export function useGlobalMap(
   tracks: Readonly<Ref<readonly ActivityTrack[]>>,
@@ -59,8 +62,25 @@ export function useGlobalMap(
     return byActivity
   })
 
+  /** Whether the viewer has any journey. */
+  const hasJourneys = computed(() => journeyOf.value.size > 0)
+  /** Whether the map draws and counts only the activities of journeys. */
+  const journeysOnly = ref(false)
+  // With no journey left, after a refetch, there is nothing to show but every activity.
+  watch(hasJourneys, (has) => {
+    if (!has) {
+      journeysOnly.value = false
+    }
+  })
+  /** The tracks the map draws and counts: every track, or those of journeys alone. */
+  const shownTracks = computed<readonly ActivityTrack[]>(() =>
+    journeysOnly.value
+      ? tracks.value.filter((track) => journeyOf.value.has(track.activityId))
+      : tracks.value,
+  )
+
   const filed = computed<FiledTrack[]>(() =>
-    tracks.value.map((track) => {
+    shownTracks.value.map((track) => {
       const journey = journeyOf.value.get(track.activityId)
       return {
         track,
@@ -75,18 +95,18 @@ export function useGlobalMap(
 
   const periods = computed<Period[]>(() => {
     const periodSize = size.value
-    if (periodSize === 'all' || tracks.value.length === 0) {
+    if (periodSize === 'all' || shownTracks.value.length === 0) {
       return []
     }
     let first = '9999-12-31'
     let last = '0000-01-01'
-    for (const { startDate, endDate } of tracks.value) {
+    for (const { startDate, endDate } of shownTracks.value) {
       first = startDate < first ? startDate : first
       last = endDate > last ? endDate : last
     }
     return periodsBetween(first, last, periodSize, firstDayOfWeek.value)
   })
-  const counts = computed(() => periodCounts(periods.value, tracks.value))
+  const counts = computed(() => periodCounts(periods.value, shownTracks.value))
   const period = computed<Period | null>(() => periods.value[index.value] ?? null)
 
   watch(periods, (next, previous) => {
@@ -106,27 +126,27 @@ export function useGlobalMap(
   const visibleTracks = computed<readonly ActivityTrack[]>(() => {
     const current = period.value
     if (!current) {
-      return tracks.value
+      return shownTracks.value
     }
     return filed.value
       .filter(({ startDate, endDate }) => overlapsPeriod(current, startDate, endDate))
       .map(({ track }) => track)
   })
 
-  /** The activities that happened in the period shown: every one for all time. */
+  /** The activities shown that happened in the period shown: every one for all time. */
   const periodTracks = computed<readonly ActivityTrack[]>(() => {
     const current = period.value
     return current
-      ? tracks.value.filter((track) => overlapsPeriod(current, track.startDate, track.endDate))
-      : tracks.value
+      ? shownTracks.value.filter((track) => overlapsPeriod(current, track.startDate, track.endDate))
+      : shownTracks.value
   })
   const activityCount = computed(() => periodTracks.value.length)
-  const journeyCount = computed(
+  /** The journeys with an activity in the period shown. */
+  const periodJourneys = computed(
     () =>
-      new Set(
-        periodTracks.value.flatMap((track) => journeyOf.value.get(track.activityId)?.id ?? []),
-      ).size,
+      new Set(periodTracks.value.flatMap((track) => journeyOf.value.get(track.activityId) ?? [])),
   )
+  const journeyCount = computed(() => periodJourneys.value.size)
   const categoryCounts = computed(() => {
     const result: Record<ActivityBadgeType, number> = {
       running: 0,
@@ -152,10 +172,21 @@ export function useGlobalMap(
       selectedIds.value = []
     },
   )
+  // Drawing only journeys leaves only journeys selected, so the list matches what the map draws.
+  watch(journeysOnly, (only) => {
+    if (only) {
+      selectedIds.value = selectedIds.value.filter((id) => journeyOf.value.has(id))
+    }
+  })
 
   const startOf = computed(
     () => new Map(tracks.value.map((track) => [track.activityId, Date.parse(track.startTime)])),
   )
+  /** Outings in the order to list them: the most recent first. */
+  const byRecency = (list: Outing[]): Outing[] => {
+    const started = (outing: Outing): number => startOf.value.get(outing.activityIds[0] ?? '') ?? 0
+    return list.sort((a, b) => started(b) - started(a))
+  }
   /** The selected outings: a journey once however many of its tracks were hit, or a single activity. */
   const outings = computed<Outing[]>(() => {
     const seen = new Map<string, Outing>()
@@ -166,9 +197,18 @@ export function useGlobalMap(
         seen.set(key, { id: key, journey, activityIds: journey?.activityIds ?? [id] })
       }
     }
-    const started = (outing: Outing): number => startOf.value.get(outing.activityIds[0] ?? '') ?? 0
-    return [...seen.values()].sort((a, b) => started(b) - started(a))
+    return byRecency([...seen.values()])
   })
+  /** The journeys with an activity in the period shown, as outings. */
+  const journeyOutings = computed<Outing[]>(() =>
+    byRecency(
+      [...periodJourneys.value].map((journey) => ({
+        id: journey.id,
+        journey,
+        activityIds: journey.activityIds,
+      })),
+    ),
+  )
   const highlighted = computed<ReadonlySet<string>>(
     () => new Set(outings.value.flatMap((outing) => outing.activityIds)),
   )
@@ -180,6 +220,8 @@ export function useGlobalMap(
     periods,
     counts,
     period,
+    hasJourneys,
+    journeysOnly,
     visibleTracks,
     activityCount,
     journeyCount,
@@ -188,6 +230,7 @@ export function useGlobalMap(
     nextIndex,
     selectedIds,
     outings,
+    journeyOutings,
     highlighted,
   }
 }

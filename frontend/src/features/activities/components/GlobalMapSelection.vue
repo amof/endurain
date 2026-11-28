@@ -19,12 +19,16 @@ import { formatDistance, formatHmsDuration } from '@/features/activities/utils/f
 import { formatMediumDate, formatZonedDateTime } from '@/utils/datetime'
 
 /**
- * The outings under the last click on the global map, most recent first. A busy spot can hold hundreds, so they are
- * listed a page at a time and only the listed activities are read.
+ * A list of outings on the global map, such as the ones under the last click. A busy spot can hold hundreds, so they
+ * are listed a page at a time and only the listed activities are read.
  */
 const props = defineProps<{
-  /** The selected outings, in the order to list them. */
+  /** The outings, in the order to list them. */
   outings: Outing[]
+  /** The list's heading. */
+  title: string
+  /** Whether the list is a selection the viewer can clear. */
+  clearable: boolean
   /** The viewer's unit system. */
   units: Units
 }>()
@@ -136,12 +140,13 @@ function detailsOf(activity: Activity): string {
 </script>
 
 <template>
-  <section class="flex flex-col" :aria-label="t('activities.globalMap.panel.selection')">
-    <header class="flex items-center justify-between gap-2 border-b border-border py-1 pr-2 pl-4">
-      <h2 class="text-item-title tabular-nums">
-        {{ t('activities.globalMap.panel.selected', { count: outings.length }) }}
-      </h2>
+  <section class="flex flex-col" :aria-label="title">
+    <header
+      class="flex min-h-11 items-center justify-between gap-2 border-b border-border py-1 pr-2 pl-4"
+    >
+      <h2 class="text-item-title tabular-nums">{{ title }}</h2>
       <Button
+        v-if="clearable"
         variant="ghost"
         size="icon"
         :aria-label="t('activities.globalMap.panel.clear')"

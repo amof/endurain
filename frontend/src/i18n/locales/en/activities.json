@@ -313,7 +313,10 @@
     },
     "panel": {
       "label": "Map details",
-      "selection": "Selected activities",
+      "show": "Show",
+      "activities": "Activities",
+      "journeys": "Journeys",
+      "noJourneys": "No journey in this period. A journey is two or more activities over several days, each starting where the last one ended.",
       "selected": "{count} selected",
       "clear": "Clear selection",
       "journey": "Journey",

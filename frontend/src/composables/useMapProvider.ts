@@ -66,6 +66,11 @@ export interface MapOverviewOptions {
   /** Ids drawn emphasised; while it is not empty, every other track is dimmed. */
   highlighted: ReadonlySet<string>
   /**
+   * Whether a track too small to read at the current zoom is drawn as a dot, nearby dots merging into a bubble that
+   * counts them; when `false`, every track is drawn as its line at any zoom.
+   */
+  dots: boolean
+  /**
    * Called with the ids of every track under a click, or at the map's centre when Enter is pressed on the map; an
    * empty list when there is none.
    */

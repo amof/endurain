@@ -1,7 +1,7 @@
 /**
- * The Leaflet provider's overview map: many tracks on one canvas. A track too small to read at the current zoom is
- * drawn as a dot instead of a line, and nearby dots merge into a bubble counting their tracks, so a lone activity far
- * from the others stays visible when the map is zoomed out.
+ * The Leaflet provider's overview map: many tracks on one canvas. Unless dots are turned off, a track too small to read
+ * at the current zoom is drawn as a dot instead of a line, and nearby dots merge into a bubble counting their tracks,
+ * so a lone activity far from the others stays visible when the map is zoomed out.
  *
  * The pure {@link idsNear} and {@link clusterPoints} helpers are exported so hit-testing and grouping can be
  * unit-tested without a real map.
@@ -284,7 +284,10 @@ export function mountLeafletOverview(
     }
   }
 
-  /** Splits the current tracks into lines and dots for the current zoom, and merges nearby dots into bubbles. */
+  /**
+   * Splits the current tracks into lines and dots for the current zoom, or draws them all as lines when dots are off,
+   * and merges nearby dots into bubbles.
+   */
   const layout = (): void => {
     const zoom = map.getZoom()
     const lines = new Set<Entry>()
@@ -293,7 +296,7 @@ export function mountLeafletOverview(
       const southWest = map.project(entry.bounds.getSouthWest(), zoom)
       const northEast = map.project(entry.bounds.getNorthEast(), zoom)
       const extent = Math.max(northEast.x - southWest.x, southWest.y - northEast.y)
-      if (extent >= READABLE_TRACK_PX) {
+      if (!current.dots || extent >= READABLE_TRACK_PX) {
         lines.add(entry)
       } else {
         small.push(entry)
@@ -407,17 +410,20 @@ export function mountLeafletOverview(
   return {
     update(next: MapOverviewOptions): void {
       const tracksChanged = next.tracks !== current.tracks
+      const dotsChanged = next.dots !== current.dots
       current = next
-      if (!tracksChanged) {
+      if (tracksChanged) {
+        setTracks(next.tracks)
+        const view = map.getBounds()
+        if (shown.length > 0 && !shown.some((entry) => view.intersects(entry.bounds))) {
+          fit()
+        }
+      }
+      if (tracksChanged || dotsChanged) {
+        layout()
+      } else {
         restyle()
-        return
       }
-      setTracks(next.tracks)
-      const view = map.getBounds()
-      if (shown.length > 0 && !shown.some((entry) => view.intersects(entry.bounds))) {
-        fit()
-      }
-      layout()
     },
     recenter: fit,
     destroy(): void {

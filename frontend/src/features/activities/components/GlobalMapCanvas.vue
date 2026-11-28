@@ -13,6 +13,8 @@ const props = defineProps<{
   tracks: MapOverviewTrack[]
   /** The ids of the selected tracks, drawn emphasised. */
   highlighted: ReadonlySet<string>
+  /** Whether a track too small to read at the current zoom becomes a dot, merged with nearby ones into a bubble. */
+  dots: boolean
 }>()
 
 const emit = defineEmits<{
@@ -29,6 +31,7 @@ function options(): MapOverviewOptions {
   return {
     tracks: props.tracks,
     highlighted: props.highlighted,
+    dots: props.dots,
     onSelect: (ids) => emit('select', ids),
     clusterLabel: (count) => t('activities.globalMap.cluster', { count }),
   }
@@ -38,7 +41,7 @@ const { instance } = useMountedMap(container, (target, provider) =>
   provider.mountOverview(target, options()),
 )
 watch(
-  () => [props.tracks, props.highlighted],
+  () => [props.tracks, props.highlighted, props.dots],
   () => instance()?.update(options()),
 )
 

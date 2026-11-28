@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { mount } from '@vue/test-utils'
-import { ref } from 'vue'
+import { flushPromises, mount } from '@vue/test-utils'
+import { defineComponent, ref } from 'vue'
 
 import type { ActivityTrack } from '@/features/activities/types'
 
 import i18n from '@/i18n'
+import GlobalMapPanel from '@/features/activities/components/GlobalMapPanel.vue'
 import GlobalMapView from '@/features/activities/views/GlobalMapView.vue'
 import { activityUuid } from './fixtures/activity'
 
@@ -95,5 +96,28 @@ describe('GlobalMapView', () => {
     expect(wrapper.text()).toContain(i18n.global.t('activities.globalMap.refreshError'))
     await retryButton(wrapper).trigger('click')
     expect(tracksQuery.refetch).toHaveBeenCalledOnce()
+  })
+
+  it('fits the map to what it shows when the panel switches between activities and journeys', async () => {
+    const recenter = vi.fn<() => void>()
+    tracksQuery.data = ref([TRACK])
+    tracksQuery.isPending = ref(false)
+    tracksQuery.isError = ref(false)
+    const wrapper = mount(GlobalMapView, {
+      global: {
+        plugins: [i18n],
+        stubs: {
+          GlobalMapCanvas: defineComponent({
+            setup: (_, { expose }) => expose({ recenter }),
+            template: '<div />',
+          }),
+        },
+      },
+    })
+
+    wrapper.getComponent(GlobalMapPanel).vm.$emit('update:journeysOnly', true)
+    await flushPromises()
+
+    expect(recenter).toHaveBeenCalledOnce()
   })
 })
