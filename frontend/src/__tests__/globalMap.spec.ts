@@ -299,7 +299,8 @@ describe('useGlobalMap', () => {
     expect(map.outings.value.map((current) => current.activityIds)).toEqual([
       trek.map((current) => current.activityId),
     ])
-    expect(map.activityCount.value).toBe(2)
+    // The number of activities still takes every one, for the activities tab; the sports take those drawn.
+    expect(map.activityCount.value).toBe(3)
     expect(map.journeyCount.value).toBe(1)
     expect(map.categoryCounts.value.hiking).toBe(2)
 
@@ -313,6 +314,36 @@ describe('useGlobalMap', () => {
     await nextTick()
     expect(map.counts.value).toEqual([2, 1])
     expect(map.period.value?.start).toBe('2026-07-01')
+  })
+
+  it('leaves out the sports turned off, while each sport keeps its count', async () => {
+    const trek: ActivityTrack[] = [
+      track(north(0), north(20), '2026-07-18T07:00:00Z', '2026-07-18T16:00:00Z'),
+      {
+        ...track(north(20), north(40), '2026-07-19T07:00:00Z', '2026-07-19T16:00:00Z'),
+        activityType: 'run',
+      },
+    ]
+    const ride: ActivityTrack = { ...outing('2026-08-02'), activityType: 'ride' }
+    const map = useGlobalMap(ref([...trek, ride]), ref('monday'))
+    map.selectedIds.value = [ride.activityId, trek[0]?.activityId ?? '']
+
+    map.hiddenCategories.value = new Set(['cycling', 'running'])
+    await nextTick()
+
+    expect(map.visibleTracks.value).toEqual([trek[0]])
+    expect(map.activityCount.value).toBe(1)
+    expect(map.journeyCount.value).toBe(1)
+    expect(map.categoryCounts.value).toMatchObject({ hiking: 1, running: 1, cycling: 1 })
+    // The ride is no longer drawn, so it leaves the selection; the journey stays, drawn by its hike.
+    expect(map.outings.value.map((current) => current.activityIds)).toEqual([
+      trek.map((current) => current.activityId),
+    ])
+
+    map.hiddenCategories.value = new Set(['hiking', 'running'])
+    await nextTick()
+    expect(map.journeyCount.value).toBe(0)
+    expect(map.journeyOutings.value).toEqual([])
   })
 
   it('shows every activity again once the viewer has no journey left', async () => {

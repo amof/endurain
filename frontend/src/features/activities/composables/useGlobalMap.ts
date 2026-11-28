@@ -35,18 +35,21 @@ interface FiledTrack {
  * A journey is drawn whole in every period it overlaps, while the counts take each activity in the period it
  * happened in. A new list of periods, after a refetch or a change of period size, keeps the time shown: it moves to
  * the latest period with activities within the period shown before, else to the period holding its start, else to the
- * latest period. A selection belongs to the period it was made in, so a change of period clears it. The map can show
- * only the activities of journeys, while the viewer has any: then the periods, their counts, the tracks drawn and the
- * totals take those alone.
+ * latest period. A selection belongs to the period it was made in, so a change of period clears it.
+ *
+ * The viewer can turn sports off, and show only the activities of journeys while they have any. The periods, their
+ * counts and the tracks drawn take only the activities shown, and the selection keeps only those. The number of
+ * activities in the period takes every sport turned on, journey or not, and the number of journeys those with such an
+ * activity. Each sport keeps its own count, of journeys' activities alone while only journeys are shown.
  *
  * @param tracks - Every track of the viewer.
  * @param firstDayOfWeek - The viewer's first weekday, for weekly periods.
  * @returns The journey of each activity; the period size and index (both writable); the periods and the number of
- *   activities shown in each; the period shown (`null` for all time); whether the viewer has any journey and whether
- *   only journeys are shown (writable); the tracks the period draws, its number of activities and journeys and its
- *   activities per sport category; the nearest earlier and later periods with activities (`null` when there is
- *   none); the selected activity ids (writable) and their outings; the period's journeys as outings, both most recent
- *   first; and the ids the selection highlights.
+ *   activities shown in each; the period shown (`null` for all time); whether the viewer has any journey; whether only
+ *   journeys are shown and the sports turned off (both writable); the tracks the period draws, its number of
+ *   activities and journeys, and its activities per sport category; the nearest earlier and later periods with
+ *   activities (`null` when there is none); the selected activity ids (writable) and their outings; the period's
+ *   journeys as outings, both most recent first; and the ids the selection highlights.
  */
 export function useGlobalMap(
   tracks: Readonly<Ref<readonly ActivityTrack[]>>,
@@ -72,11 +75,17 @@ export function useGlobalMap(
       journeysOnly.value = false
     }
   })
-  /** The tracks the map draws and counts: every track, or those of journeys alone. */
+  /** The sports turned off. */
+  const hiddenCategories = ref<ReadonlySet<ActivityBadgeType>>(new Set())
+  /** Whether a track's sport is turned on. */
+  const sportShown = (track: ActivityTrack): boolean =>
+    !hiddenCategories.value.has(activityBadgeCategory(track.activityType))
+  /** Whether a track is shown under the journeys filter. */
+  const journeyShown = (track: ActivityTrack): boolean =>
+    !journeysOnly.value || journeyOf.value.has(track.activityId)
+  /** The tracks the map draws and counts: those of the sports turned on, of journeys alone while asked. */
   const shownTracks = computed<readonly ActivityTrack[]>(() =>
-    journeysOnly.value
-      ? tracks.value.filter((track) => journeyOf.value.has(track.activityId))
-      : tracks.value,
+    tracks.value.filter((track) => sportShown(track) && journeyShown(track)),
   )
 
   const filed = computed<FiledTrack[]>(() =>
@@ -133,18 +142,22 @@ export function useGlobalMap(
       .map(({ track }) => track)
   })
 
-  /** The activities shown that happened in the period shown: every one for all time. */
+  /** Every activity that happened in the period shown, whether or not it is shown: every one for all time. */
   const periodTracks = computed<readonly ActivityTrack[]>(() => {
     const current = period.value
     return current
-      ? shownTracks.value.filter((track) => overlapsPeriod(current, track.startDate, track.endDate))
-      : shownTracks.value
+      ? tracks.value.filter((track) => overlapsPeriod(current, track.startDate, track.endDate))
+      : tracks.value
   })
-  const activityCount = computed(() => periodTracks.value.length)
-  /** The journeys with an activity in the period shown. */
+  /** The activities of the sports turned on that happened in the period shown, journey or not. */
+  const periodSportTracks = computed(() => periodTracks.value.filter(sportShown))
+  const activityCount = computed(() => periodSportTracks.value.length)
+  /** The journeys with an activity of a sport turned on in the period shown. */
   const periodJourneys = computed(
     () =>
-      new Set(periodTracks.value.flatMap((track) => journeyOf.value.get(track.activityId) ?? [])),
+      new Set(
+        periodSportTracks.value.flatMap((track) => journeyOf.value.get(track.activityId) ?? []),
+      ),
   )
   const journeyCount = computed(() => periodJourneys.value.size)
   const categoryCounts = computed(() => {
@@ -155,7 +168,7 @@ export function useGlobalMap(
       hiking: 0,
       other: 0,
     }
-    for (const track of periodTracks.value) {
+    for (const track of periodTracks.value.filter(journeyShown)) {
       result[activityBadgeCategory(track.activityType)] += 1
     }
     return result
@@ -172,10 +185,12 @@ export function useGlobalMap(
       selectedIds.value = []
     },
   )
-  // Drawing only journeys leaves only journeys selected, so the list matches what the map draws.
-  watch(journeysOnly, (only) => {
-    if (only) {
-      selectedIds.value = selectedIds.value.filter((id) => journeyOf.value.has(id))
+  // A track no longer shown leaves the selection, so the list matches what the map draws.
+  watch(shownTracks, (shown) => {
+    const ids = new Set(shown.map((track) => track.activityId))
+    const kept = selectedIds.value.filter((id) => ids.has(id))
+    if (kept.length < selectedIds.value.length) {
+      selectedIds.value = kept
     }
   })
 
@@ -222,6 +237,7 @@ export function useGlobalMap(
     period,
     hasJourneys,
     journeysOnly,
+    hiddenCategories,
     visibleTracks,
     activityCount,
     journeyCount,

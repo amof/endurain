@@ -13,14 +13,13 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatNumber } from '@/utils/formatNumber'
 
 /**
- * The global map's side panel. Its tabs show every activity or only journeys. Under them, what the period shown holds:
- * activities, journeys, and activities per sport, whose dots are the key to the track colours. Then the outings under
- * the last click, or on the journeys tab every journey of the period until some are clicked.
+ * The global map's side panel. Its tabs, each with its number in the period shown (which the timeline names), show
+ * every activity or only journeys. Under them, a chip per sport with its number of activities: its dot is the key to
+ * the track colour, and pressing it turns the sport off or on again. Then the outings under the last click, or on the
+ * journeys tab every journey of the period until some are clicked.
  */
 const props = defineProps<{
-  /** The label of the period shown. */
-  label: string
-  /** The number of activities shown in the period. */
+  /** The number of activities in the period. */
   activityCount: number
   /** The number of journeys with an activity in the period. */
   journeyCount: number
@@ -38,6 +37,10 @@ const props = defineProps<{
 
 /** Whether the map shows only the activities of journeys. */
 const journeysOnly = defineModel<boolean>('journeysOnly', { required: true })
+/** The sports turned off; every one is on at first. */
+const hiddenCategories = defineModel<ReadonlySet<ActivityBadgeType>>('hiddenCategories', {
+  required: true,
+})
 
 const emit = defineEmits<{
   /** The viewer cleared the selection. */
@@ -63,32 +66,42 @@ const tab = computed({
   },
 })
 
-/** The sports with an activity in the period, most activities first. A colour no track is drawn in needs no key. */
+/** The sports with an activity in the period, most activities first, each turned on or off. */
 const legend = computed(() =>
   CATEGORIES.flatMap((category) => {
     const count = props.categoryCounts[category]
-    return count > 0 ? [{ category, swatch: activitySwatchClasses[category], count }] : []
+    return count > 0
+      ? [
+          {
+            category,
+            swatch: activitySwatchClasses[category],
+            count,
+            on: !hiddenCategories.value.has(category),
+          },
+        ]
+      : []
   }).sort((a, b) => b.count - a.count),
 )
 
 /** The outings to list, under their heading: the selection, else on the journeys tab every journey of the period. */
 const list = computed(() => {
   if (props.outings.length > 0) {
-    return {
-      outings: props.outings,
-      title: t('activities.globalMap.panel.selected', { count: props.outings.length }),
-      clearable: true,
-    }
+    return { outings: props.outings, selection: true }
   }
   if (journeysOnly.value && props.journeyOutings.length > 0) {
-    return {
-      outings: props.journeyOutings,
-      title: t('activities.globalMap.journeyCount', props.journeyOutings.length),
-      clearable: false,
-    }
+    return { outings: props.journeyOutings, selection: false }
   }
   return null
 })
+
+/** Turns a sport off, or on again. */
+function toggle(category: ActivityBadgeType): void {
+  const next = new Set(hiddenCategories.value)
+  if (!next.delete(category)) {
+    next.add(category)
+  }
+  hiddenCategories.value = next
+}
 </script>
 
 <template>
@@ -102,64 +115,56 @@ const list = computed(() => {
           class="grid w-full grid-cols-2"
           :aria-label="t('activities.globalMap.panel.show')"
         >
-          <TabsTrigger value="activities">{{
-            t('activities.globalMap.panel.activities')
-          }}</TabsTrigger>
-          <TabsTrigger value="journeys" :disabled="!hasJourneys">{{
-            t('activities.globalMap.panel.journeys')
-          }}</TabsTrigger>
+          <TabsTrigger value="activities" class="gap-2">
+            <span>{{ t('activities.globalMap.panel.activities') }}</span>
+            <span class="font-normal text-muted-foreground tabular-nums">
+              {{ formatNumber(activityCount) }}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="journeys" class="gap-2" :disabled="!hasJourneys">
+            <span>{{ t('activities.globalMap.panel.journeys') }}</span>
+            <span class="font-normal text-muted-foreground tabular-nums">
+              {{ formatNumber(journeyCount) }}
+            </span>
+          </TabsTrigger>
         </TabsList>
       </Tabs>
-      <div class="flex flex-col gap-3">
-        <div class="flex flex-col gap-1">
-          <h2 class="text-section-heading">{{ label }}</h2>
-          <p class="flex flex-wrap items-baseline gap-x-2 text-body">
-            <i18n-t keypath="activities.globalMap.activityCount" :plural="activityCount" tag="span">
-              <template #count>
-                <span class="text-metric font-medium text-foreground tabular-nums">
-                  {{ formatNumber(activityCount) }}
-                </span>
-              </template>
-            </i18n-t>
-            <template v-if="journeyCount > 0">
-              <span aria-hidden="true">·</span>
-              <i18n-t keypath="activities.globalMap.journeyCount" :plural="journeyCount" tag="span">
-                <template #count>
-                  <span class="text-metric font-medium text-foreground tabular-nums">
-                    {{ formatNumber(journeyCount) }}
-                  </span>
-                </template>
-              </i18n-t>
-            </template>
-          </p>
-        </div>
-        <ul
-          v-if="legend.length > 0"
-          class="flex flex-wrap gap-2"
-          :aria-label="t('activities.globalMap.legend.label')"
-        >
-          <li
-            v-for="entry in legend"
-            :key="entry.category"
-            class="inline-flex items-center gap-1.5 rounded-badge border border-border px-2 py-1 text-meta"
+      <ul
+        v-if="legend.length > 0"
+        class="flex flex-wrap gap-2"
+        :aria-label="t('activities.globalMap.legend.label')"
+      >
+        <li v-for="entry in legend" :key="entry.category">
+          <button
+            type="button"
+            :aria-pressed="entry.on"
+            :class="[
+              'inline-flex cursor-pointer items-center gap-1.5 rounded-badge border px-2 py-1 text-meta transition-colors outline-none hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/30',
+              entry.on
+                ? 'border-border bg-card'
+                : 'border-dashed border-border text-muted-foreground',
+            ]"
+            @click="toggle(entry.category)"
           >
-            <span :class="['size-2 shrink-0 rounded-full', entry.swatch]" aria-hidden="true" />
-            <span class="text-muted-foreground">
+            <span
+              :class="['size-2 shrink-0 rounded-full', entry.on ? entry.swatch : 'bg-border']"
+              aria-hidden="true"
+            />
+            <span :class="entry.on ? 'text-muted-foreground' : 'line-through'">
               {{ t(`activities.globalMap.legend.${entry.category}`) }}
             </span>
-            <span class="font-medium text-foreground tabular-nums">
+            <span :class="['font-medium tabular-nums', entry.on && 'text-foreground']">
               {{ formatNumber(entry.count) }}
             </span>
-          </li>
-        </ul>
-      </div>
+          </button>
+        </li>
+      </ul>
     </section>
     <GlobalMapSelection
       v-if="list"
       class="min-h-0 flex-1"
       :outings="list.outings"
-      :title="list.title"
-      :clearable="list.clearable"
+      :selection="list.selection"
       :units="units"
       @clear="emit('clear')"
     />

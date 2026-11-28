@@ -35,6 +35,7 @@ const {
   period,
   hasJourneys,
   journeysOnly,
+  hiddenCategories,
   visibleTracks,
   activityCount,
   journeyCount,
@@ -143,9 +144,9 @@ const periodLabel = computed(() => {
         <div class="relative lg:w-96 lg:shrink-0">
           <GlobalMapPanel
             class="lg:absolute lg:inset-0"
-            :label="periodLabel"
             :activity-count="activityCount"
             v-model:journeys-only="journeysOnly"
+            v-model:hidden-categories="hiddenCategories"
             :journey-count="journeyCount"
             :category-counts="categoryCounts"
             :outings="outings"

@@ -20,10 +20,10 @@ const OUTINGS: Outing[] = Array.from({ length: 25 }, (_, n) => ({
   activityIds: [activityUuid(n + 1)],
 }))
 
-/** Mounts a list of outings under a heading, with a clear button unless `clearable` is false. */
-function mountSelection(outings: Outing[], clearable = true) {
+/** Mounts a list of outings, headed as a selection unless `selection` is false. */
+function mountSelection(outings: Outing[], selection = true) {
   return mount(GlobalMapSelection, {
-    props: { outings, title: `${outings.length} selected`, clearable, units: 'metric' },
+    props: { outings, selection, units: 'metric' },
     global: {
       plugins: [i18n, [VueQueryPlugin, { queryClient: new QueryClient() }]],
       stubs: { RouterLink: { template: '<a class="row"><slot /></a>' } },
@@ -43,7 +43,9 @@ describe('GlobalMapSelection', () => {
     const wrapper = mountSelection(OUTINGS)
     await flushPromises()
 
-    expect(wrapper.get('h2').text()).toBe('25 selected')
+    expect(wrapper.get('h2').text()).toBe(
+      i18n.global.t('activities.globalMap.panel.selected', { count: 25 }),
+    )
     expect(wrapper.findAll('a.row')).toHaveLength(10)
     expect(fetchActivity).toHaveBeenCalledTimes(10)
 
@@ -84,12 +86,11 @@ describe('GlobalMapSelection', () => {
     expect(wrapper.emitted('clear')).toHaveLength(1)
   })
 
-  it('offers no clear button for a list that is not a selection', async () => {
+  it('has no heading or clear button for a list that is not a selection', async () => {
     const wrapper = mountSelection(OUTINGS.slice(0, 1), false)
     await flushPromises()
 
-    expect(
-      wrapper.find(`[aria-label="${i18n.global.t('activities.globalMap.panel.clear')}"]`).exists(),
-    ).toBe(false)
+    expect(wrapper.find('header').exists()).toBe(false)
+    expect(wrapper.findAll('a.row')).toHaveLength(1)
   })
 })

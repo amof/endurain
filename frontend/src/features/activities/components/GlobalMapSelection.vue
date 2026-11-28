@@ -25,10 +25,8 @@ import { formatMediumDate, formatZonedDateTime } from '@/utils/datetime'
 const props = defineProps<{
   /** The outings, in the order to list them. */
   outings: Outing[]
-  /** The list's heading. */
-  title: string
-  /** Whether the list is a selection the viewer can clear. */
-  clearable: boolean
+  /** Whether the outings are a selection, headed by their number and a button to clear it. */
+  selection: boolean
   /** The viewer's unit system. */
   units: Units
 }>()
@@ -140,13 +138,22 @@ function detailsOf(activity: Activity): string {
 </script>
 
 <template>
-  <section class="flex flex-col" :aria-label="title">
+  <section
+    class="flex flex-col"
+    :aria-label="
+      selection
+        ? t('activities.globalMap.panel.selection')
+        : t('activities.globalMap.panel.journeys')
+    "
+  >
     <header
-      class="flex min-h-11 items-center justify-between gap-2 border-b border-border py-1 pr-2 pl-4"
+      v-if="selection"
+      class="flex items-center justify-between gap-2 border-b border-border py-1 pr-2 pl-4"
     >
-      <h2 class="text-item-title tabular-nums">{{ title }}</h2>
+      <h2 class="text-item-title tabular-nums">
+        {{ t('activities.globalMap.panel.selected', { count: outings.length }) }}
+      </h2>
       <Button
-        v-if="clearable"
         variant="ghost"
         size="icon"
         :aria-label="t('activities.globalMap.panel.clear')"
